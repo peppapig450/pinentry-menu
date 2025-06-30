@@ -58,7 +58,7 @@ populate_runners_map() {
   # This ensures that our printf substitution works correctly
   local -A raw_runners=(
     ["rofi"]="rofi -dmenu -input /dev/null -password -lines 0 -p %s -mesg %s"
-    ["wofi"]="wofi --dmenu --password -p %s"
+    ["wofi"]="wofi --dmenu --cache-file /dev/null --password --prompt %s"
     ["fuzzel"]='fuzzel --placeholder=%s: --prompt-only %s --cache /dev/null --dmenu --password'
   )
 
