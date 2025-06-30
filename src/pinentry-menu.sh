@@ -165,3 +165,7 @@ main() {
   local run_cmd="${runners[${resolved_runner}]}"
   pinentry_loop "$resolved_runner" "$run_cmd"
 }
+
+if ! (return 0 2> /dev/null); then
+  main "$@"
+fi
