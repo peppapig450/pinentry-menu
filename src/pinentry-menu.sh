@@ -231,7 +231,7 @@ pinentry_loop() {
         ;;
       GETPIN)
         local message password
-        message="$(format_message "${error}${desc}")"
+        message="${error}${desc}"
         if password="$(run_prompt "$delim" "$run_cmd" "$prompt" "$message")"; then
           [[ -n ${password:-} ]] && send_data "$password"
         fi
