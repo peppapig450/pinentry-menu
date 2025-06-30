@@ -7,7 +7,7 @@ die() {
 }
 
 dief() {
-  local fmt=$1
+  local fmt="$1"
   shift
   printf "Error: ${fmt}\n" "$@" >&2
   exit 1
@@ -15,12 +15,22 @@ dief() {
 
 populate_runners_map() {
   local -n runners_ref="$1"
+  local delim="$2"
 
-  runners_ref=(
+  # Define raw runner commands with space-separated values
+  # Placeholders MUST be in the order $desc and then $prompt
+  # This ensures that our printf substitution works correctly
+  local -A raw_runners=(
     ["rofi"]="rofi -dmenu -input /dev/null -password -lines 0"
-    ["wofi"]="wofi --dmenu --password"
-    ["fuzzel"]="fuzzel --dmenu --password"
+    ["wofi"]="wofi --dmenu --password -p %s"
+    ["fuzzel"]='fuzzel --prompt-only %s --placeholder=%s: --cache /dev/null --dmenu --password'
   )
+
+  local runner
+  for runner in "${!raw_runners[@]}"; do
+    # Replace spaces with ASCII Unit Seperator
+    runners_ref["${runner}"]="${raw_runners[${runner}]// /${delim}}"
+  done
 }
 
 check_command() {
@@ -71,13 +81,18 @@ check_environment() {
 }
 
 run_prompt() {
-  local cmd="$1"
-  local prompt="$2"
-  local message="$3"
+  local delim="$1"
+  local cmd="$2"
+  local prompt="$3"
+  local message="$4"
 
-  # Build array for safe execution of command
-  read -ra cmd_parts <<< "$cmd"
-  env "${cmd_parts[@]}" -p "$prompt" -mesg "$message"
+  # Substitute the placeholders with our prompt and message values
+  local full_cmd
+  full_cmd="$(printf "$cmd" "$desc" "$prompt")"
+
+  # Build array for safe execution of command, using our custom delim
+  IFS="$delim" read -ra cmd_parts <<< "$full_cmd"
+  env "${cmd_parts[@]}"
 }
 
 send_ok() {
@@ -98,6 +113,7 @@ send_error() {
 pinentry_loop() {
   local runner="$1"
   local run_cmd="$2"
+  local delim="$3"
   local desc error prompt
 
   while read -r cmd rest; do
@@ -138,7 +154,7 @@ pinentry_loop() {
       GETPIN)
         local message password
         message="$(format_message "${error}${desc}")"
-        if password="$(run_prompt "${run_cmd}" "${prompt}" "${message}")"; then
+        if password="$(run_prompt "$delim" "$run_cmd" "$prompt" "$message")"; then
           [[ -n ${password:-} ]] && send_data "$password"
         fi
         send_ok
@@ -156,14 +172,18 @@ main() {
   local runner="${1:-}"
   local -A runners
 
+  # use the ASCII Unit Seperator for safe passing of messages containing spacse
+  # to the runners, this allows us to build the command into an array safely.
+  local delim=$'\x1F'
+
   check_environment
-  populate_runners_map runners
+  populate_runners_map runners "$delim"
 
   local resolved_runner
   resolved_runner="$(get_runner_command "$runner" runners)" || die "No usable runner"
 
   local run_cmd="${runners[${resolved_runner}]}"
-  pinentry_loop "$resolved_runner" "$run_cmd"
+  pinentry_loop "$resolved_runner" "$run_cmd" "$delim"
 }
 
 if ! (return 0 2> /dev/null); then
