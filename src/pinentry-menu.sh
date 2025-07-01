@@ -274,5 +274,5 @@ main() {
 
 # Avoid running if sourced
 if ! (return 0 2> /dev/null); then
-  main "$@"
+  main "$(printenv PINENTRY_USER_DATA)"
 fi
