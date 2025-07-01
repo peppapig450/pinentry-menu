@@ -156,6 +156,49 @@ run_prompt() {
   env "${cmd_parts[@]}"
 }
 
+# parse_setdesc: Parse and decode the SETDESC value into prompt and message components
+# Arguments:
+#   $1 - Raw SETDESC input string (URL-encoded, newline-delimited)
+#   $2 - Name of variable to store the parsed prompt (passed by reference)
+#   $3 - Name of variable to store the parsed message (passed by reference)
+# Outputs:
+#   Sets the referenced variables with decoded prompt and message
+# Side Effects:
+#   Defines and unsets a temporary _urldecode helper function
+parse_setdesc() {
+  local setdesc_input="$1"
+  local -n _prompt="$2"
+  local -n _message="$3"
+
+  _urldecode() {
+    # Decode URL-encoded string: '+' becomes space, %XX becomes corresponding character
+    # This is necessary because SETDESC values are URL-encoded
+    local data="${1//+/ }"
+    printf "%b" "${data//%/\\x}"
+  }
+
+  # Cleanup our little helper function
+  trap 'unset -f _urldecode' RETURN
+
+  local decoded
+  decoded="$(_urldecode "$setdesc_input")" # Decode the input into a readable string
+
+  local -a targets
+  # Read up to two lines from the decoded string into an array.
+  # The first line is the prompt; the second is the message.
+  mapfile -t -n2 targets < <(printf "%s\n" "$decoded")
+
+  # If the message line is surrounded by quotes (common in GPG), strip them
+  targets[1]="${targets[1]%\"}"
+  targets[1]="${targets[1]#\"}"
+
+  # Add a colon suffix to the prompt to make our runners happy
+  # TODO: some runners append the colon themselves, we neeed to handle that eventually
+  _prompt="${targets[0]}:"
+  # Remove any trailing colon so our placeholder doesn't look like a prompt
+  _message="${targets[1]%:}"
+}
+
 # send_ok: Send an OK response to stdout
 send_ok() {
   printf "OK\n"
@@ -192,7 +235,7 @@ pinentry_loop() {
   local runner="$1"
   local run_cmd="$2"
   local delim="$3"
-  local desc error prompt
+  local error prompt message
 
   while read -r cmd rest; do
     case "$cmd" in
@@ -218,7 +261,7 @@ pinentry_loop() {
         esac
         ;;
       SETDESC)
-        desc="$rest"
+        parse_setdesc "$rest" prompt message
         send_ok
         ;;
       SETERROR)
@@ -226,12 +269,13 @@ pinentry_loop() {
         send_ok
         ;;
       SETPROMPT)
-        prompt="${rest//:/}"
+        prompt="${prompt//:/}"
         send_ok
         ;;
       GETPIN)
-        local message password
-        message="${error}${desc}"
+        local password
+        message="${error:-}${message}"
+
         if password="$(run_prompt "$delim" "$run_cmd" "$prompt" "$message")"; then
           [[ -n ${password:-} ]] && send_data "$password"
         fi
