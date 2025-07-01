@@ -53,13 +53,12 @@ populate_runners_map() {
   local -n runners_ref="$1"
   local delim="$2"
 
-  # Define raw runner commands with space-separated values
-  # Placeholders MUST be in the order $prompt and then $message
+  # Define raw runner commands with space-separated values to take $prompt
   # This ensures that our printf substitution works correctly
   local -A raw_runners=(
     ["rofi"]="rofi -dmenu -input /dev/null -password -lines 0 -p %s -mesg %s"
     ["wofi"]="wofi --dmenu --cache-file /dev/null --password --prompt %s"
-    ["fuzzel"]='fuzzel --prompt-only=%s --placeholder=%s --cache /dev/null --dmenu --password'
+    ["fuzzel"]="fuzzel --prompt-only=%s --cache /dev/null --dmenu --password"
   )
 
   local runner
@@ -147,9 +146,14 @@ run_prompt() {
   local prompt="$3"
   local message="$4"
 
+  # TODO: not sure what to do with message for right now, as using it as a placeholder in
+  # in fuzzel does not look good, its shoved together with the prompt
+
   # Substitute the placeholders with our prompt and message values
   local full_cmd
-  full_cmd="$(printf "$cmd" "$prompt" "$message")"
+  # Don't use prompt for right now since I am not sure how to properly handle it,
+  # see TODO above
+  full_cmd="$(printf "$cmd" "${message}")"
 
   # Build array for safe execution of command, using our custom delim
   IFS="$delim" read -ra cmd_parts <<< "$full_cmd"
