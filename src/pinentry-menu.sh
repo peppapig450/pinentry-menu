@@ -237,7 +237,20 @@ pinentry_loop() {
   local delim="$3"
   local error prompt message
 
+  if [[ -n "${PINENTRY_DEBUG:-}" ]]; then
+    : > /tmp/testing-pinentry
+    exec {fd}>> /tmp/testing-pinentry
+    log_debug() {
+      printf '%(%Y-%m-%dT%H:%M:%S%z)T [RECV] %s %s\n' -1 "$1" "$2" >&"$fd"
+    }
+  else
+    log_debug() { :; }
+  fi
+
+  printf "OK Pleased to meet you\n"
+
   while read -r cmd rest; do
+    log_debug "$cmd" "$rest"
     case "$cmd" in
       \#*) send_ok ;;
       GETINFO)
